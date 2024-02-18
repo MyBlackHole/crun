@@ -198,6 +198,7 @@ libcrun_get_current_unified_cgroup (char **path, bool absolute, libcrun_error_t 
 #  define TMPFS_MAGIC 0x01021994
 #endif
 
+// 探测控制组
 static int
 detect_cgroup_mode (libcrun_error_t *err)
 {
@@ -758,15 +759,18 @@ write_controller_file (const char *path, int controllers_to_enable, libcrun_erro
   size_t controllers_len = 0;
   int ret;
 
+  // 写入要启用的功能
   controllers_len = xasprintf (
       &controllers, "%s %s %s %s %s %s", (controllers_to_enable & CGROUP_CPU) ? "+cpu" : "",
       (controllers_to_enable & CGROUP_IO) ? "+io" : "", (controllers_to_enable & CGROUP_MEMORY) ? "+memory" : "",
       (controllers_to_enable & CGROUP_PIDS) ? "+pids" : "", (controllers_to_enable & CGROUP_CPUSET) ? "+cpuset" : "",
       (controllers_to_enable & CGROUP_HUGETLB) ? "+hugetlb" : "");
 
+  // 拼接启用控制配置文件
   ret = append_paths (&subtree_control, err, CGROUP_ROOT, path, "cgroup.subtree_control", NULL);
   if (UNLIKELY (ret < 0))
     return ret;
+  // 写入数据
   ret = write_file (subtree_control, controllers, controllers_len, err);
   if (UNLIKELY (ret < 0))
     {
@@ -905,12 +909,14 @@ enable_controllers (const char *path, libcrun_error_t *err)
       if (UNLIKELY (ret < 0))
         return ret;
 
+      // 创建了
       ret = mkdir (cgroup_path, 0755);
       if (UNLIKELY (ret < 0 && errno != EEXIST))
         return crun_make_error (err, errno, "create `%s`", cgroup_path);
 
       if (next_slash)
         {
+          // 配置启用的功能
           ret = write_controller_file (tmp_path, controllers_to_enable, err);
           if (UNLIKELY (ret < 0))
             return ret;

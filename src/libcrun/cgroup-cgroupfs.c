@@ -103,6 +103,7 @@ make_new_sibling_cgroup (char **out, const char *id, libcrun_error_t *err)
   return 0;
 }
 
+// 创建控制组抽象是想
 static int
 libcrun_cgroup_enter_cgroupfs (struct libcrun_cgroup_args *args, struct libcrun_cgroup_status *out, libcrun_error_t *err)
 {
@@ -151,6 +152,7 @@ libcrun_cgroup_enter_cgroupfs (struct libcrun_cgroup_args *args, struct libcrun_
   if (args->joined)
     return 0;
 
+  // pid 进入控制组
   return enter_cgroup (cgroup_mode, pid, 0, out->path, true, err);
 }
 

@@ -3243,6 +3243,7 @@ libcrun_set_apparmor_profile (runtime_spec_schema_config_schema_process *proc, b
   return 0;
 }
 
+// 设置启用 linux 能力(权限)
 int
 libcrun_set_caps (runtime_spec_schema_config_schema_process_capabilities *capabilities, uid_t uid, gid_t gid,
                   int no_new_privileges, libcrun_error_t *err)
@@ -3314,6 +3315,7 @@ libcrun_set_rlimits (runtime_spec_schema_config_schema_process_rlimits_element *
   return 0;
 }
 
+// 设置 hostname
 int
 libcrun_set_hostname (libcrun_container_t *container, libcrun_error_t *err)
 {
@@ -3330,6 +3332,7 @@ libcrun_set_hostname (libcrun_container_t *container, libcrun_error_t *err)
   return 0;
 }
 
+// 设置域名
 int
 libcrun_set_domainname (libcrun_container_t *container, libcrun_error_t *err)
 {
@@ -3346,6 +3349,7 @@ libcrun_set_domainname (libcrun_container_t *container, libcrun_error_t *err)
   return 0;
 }
 
+// 设置内存占用打分
 int
 libcrun_set_oom (libcrun_container_t *container, libcrun_error_t *err)
 {
@@ -3835,6 +3839,7 @@ struct init_status_s
   int userns_index_origin;
 
   /* All namespaces created/joined by the container.  */
+  /* 由容器创建/加入的所有命名空间 */
   int all_namespaces;
 
   /* What namespaces are still missing to be created.  */
@@ -4456,6 +4461,7 @@ init_container (libcrun_container_t *container, int sync_socket_container, struc
 
       if (init_status->idx_pidns_to_join_immediately >= 0)
         {
+          // 设置 pid 命名空间
           ret = setns (init_status->fd[init_status->idx_pidns_to_join_immediately], CLONE_NEWPID);
           if (UNLIKELY (ret < 0))
             return crun_make_error (err, errno, "cannot setns to target pidns");
@@ -4465,6 +4471,7 @@ init_container (libcrun_container_t *container, int sync_socket_container, struc
 
       if (init_status->idx_timens_to_join_immediately >= 0)
         {
+          // 设置时间命名空间
           ret = setns (init_status->fd[init_status->idx_timens_to_join_immediately], CLONE_NEWTIME);
           if (UNLIKELY (ret < 0))
             return crun_make_error (err, errno, "cannot setns to target timens");
@@ -4560,6 +4567,7 @@ init_container (libcrun_container_t *container, int sync_socket_container, struc
       else
         {
           /* If we need to join another user namespace, do it immediately before creating any other namespace. */
+        /* 如果我们需要加入另一个用户命名空间，请在创建任何其他命名空间之前立即执行此操作 */
           ret = setns (init_status->fd[init_status->userns_index], CLONE_NEWUSER);
           if (UNLIKELY (ret < 0))
             return crun_make_error (err, errno, "cannot setns `%s`",
@@ -4726,6 +4734,7 @@ libcrun_run_linux_container (libcrun_container_t *container, container_entrypoin
   get_uid_gid_from_def (container->container_def, &container->container_uid, &container->container_gid);
 
   /* This must be done before we enter a user namespace.  */
+  // 这个必须在进入命名空间之前完成
   if (def->process)
     {
       ret = libcrun_set_rlimits (def->process->rlimits, def->process->rlimits_len, err);
@@ -4733,6 +4742,7 @@ libcrun_run_linux_container (libcrun_container_t *container, container_entrypoin
         return ret;
     }
 
+  // 设置内存使用限制
   ret = libcrun_set_oom (container, err);
   if (UNLIKELY (ret < 0))
     return ret;
@@ -4930,6 +4940,7 @@ libcrun_run_linux_container (libcrun_container_t *container, container_entrypoin
     libcrun_fail_with_error (errno, "%s", "close sync socket");
 
   /* Initialize the new process and make sure to join/create all the required namespaces.  */
+  /* 初始化新进程并确保加入/创建所有必需的命名空间。 */
   ret = init_container (container, sync_socket_container, &init_status, err);
   if (UNLIKELY (ret < 0))
     send_error_to_sync_socket_and_die (sync_socket_container, false, err);
@@ -4941,9 +4952,11 @@ libcrun_run_linux_container (libcrun_container_t *container, container_entrypoin
     }
 
   /* Jump into the specified entrypoint.  */
+  /* 跳转到指定的入口点 */
   if (container->context->notify_socket)
     xasprintf (&notify_socket_env, "NOTIFY_SOCKET=%s/notify", container->context->notify_socket);
 
+  // 入口点(container_init)
   ret = entrypoint (args, notify_socket_env, sync_socket_container, err);
 
   /* For most of the cases ENTRYPOINT returns only on an error, fallback here */

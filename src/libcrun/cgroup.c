@@ -62,6 +62,7 @@ struct libcrun_cgroup_manager cgroup_manager_disabled = {
   .destroy_cgroup = libcrun_destroy_cgroup_disabled,
 };
 
+// 获取控制组管理器
 static int
 get_cgroup_manager (int manager, struct libcrun_cgroup_manager **out, libcrun_error_t *err)
 {
@@ -254,6 +255,7 @@ can_ignore_cgroup_enter_errors (struct libcrun_cgroup_args *args, int cgroup_mod
   return 1;
 }
 
+// 控制组预备接口
 int
 libcrun_cgroup_preenter (struct libcrun_cgroup_args *args, int *dirfd, libcrun_error_t *err)
 {
@@ -285,6 +287,7 @@ libcrun_cgroup_enter (struct libcrun_cgroup_args *args, struct libcrun_cgroup_st
 {
   __attribute__ ((unused)) pid_t sigcont_cleanup __attribute__ ((cleanup (cleanup_sig_contp))) = -1;
   /* status will be filled by the cgroup manager.  */
+  /* 状态将由 cgroup 管理员填写。 */
   cleanup_cgroup_status struct libcrun_cgroup_status *status = xmalloc0 (sizeof *status);
   struct libcrun_cgroup_manager *cgroup_manager;
   uid_t root_uid = args->root_uid;
@@ -292,6 +295,7 @@ libcrun_cgroup_enter (struct libcrun_cgroup_args *args, struct libcrun_cgroup_st
   int cgroup_mode;
   int ret;
 
+  // 获取控制组模式
   cgroup_mode = libcrun_get_cgroup_mode (err);
   if (UNLIKELY (cgroup_mode < 0))
     return cgroup_mode;
@@ -314,6 +318,7 @@ libcrun_cgroup_enter (struct libcrun_cgroup_args *args, struct libcrun_cgroup_st
   if (cgroup_mode == CGROUP_MODE_HYBRID)
     {
       /* We don't really support hybrid mode, so check that cgroups2 is not using any controller.  */
+      // 还不支持混合模式
 
       size_t len;
       cleanup_free char *buffer = NULL;
@@ -325,12 +330,14 @@ libcrun_cgroup_enter (struct libcrun_cgroup_args *args, struct libcrun_cgroup_st
         return crun_make_error (err, 0, "cgroups in hybrid mode not supported, drop all controllers from cgroupv2");
     }
 
+  // 获取管理器实现
   ret = get_cgroup_manager (args->manager, &cgroup_manager, err);
   if (UNLIKELY (ret < 0))
     return ret;
 
   status->manager = args->manager;
 
+  // 创建控制组, 只关注 cgroupfs (libcrun_cgroup_enter_cgroupfs)
   ret = cgroup_manager->create_cgroup (args, status, err);
   if (UNLIKELY (ret < 0))
     {

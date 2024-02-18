@@ -66,6 +66,7 @@ struct libcrun_context_s
 enum
 {
   LIBCRUN_RUN_OPTIONS_PREFORK = 1 << 0,
+  // 保留
   LIBCRUN_RUN_OPTIONS_KEEP = 1 << 1,
 };
 
@@ -77,19 +78,26 @@ enum
 struct libcrun_container_s
 {
   /* Container parsed from the runtime json file.  */
+  // 运行时 json 解析后的容器配置
   runtime_spec_schema_config_schema *container_def;
 
+  // 有效用户 id
   uid_t host_uid;
+  // 有效用户组 id
   gid_t host_gid;
 
   uid_t container_uid;
   gid_t container_gid;
 
+  // 配置文件路径
   char *config_file;
+  // 配置文件原始内容
   char *config_file_content;
 
+  // 私有数据
   void *private_data;
   void (*cleanup_private_data) (void *private_data);
+  // 运行上下文
   struct libcrun_context_s *context;
 };
 

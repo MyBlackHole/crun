@@ -73,6 +73,7 @@ enum
   SYNC_SOCKET_WARNING_MESSAGE,
 };
 
+// 容器入口点
 struct container_entrypoint_s
 {
   libcrun_container_t *container;
@@ -442,6 +443,7 @@ is_memory_limit_too_low (runtime_spec_schema_config_schema *def)
   return false;
 }
 
+// 等待同步
 static int
 sync_socket_wait_sync (libcrun_context_t *context, int fd, bool flush, libcrun_error_t *err)
 {
@@ -485,6 +487,7 @@ sync_socket_wait_sync (libcrun_context_t *context, int fd, bool flush, libcrun_e
     }
 }
 
+// 校验同步
 static int
 sync_socket_send_sync (int fd, bool flush_errors, libcrun_error_t *err)
 {
@@ -514,6 +517,7 @@ sync_socket_send_sync (int fd, bool flush_errors, libcrun_error_t *err)
   return 0;
 }
 
+// 制作容器
 static libcrun_container_t *
 make_container (runtime_spec_schema_config_schema *container_def, const char *path, const char *config)
 {
@@ -613,6 +617,7 @@ unblock_signals (libcrun_error_t *err)
 }
 
 /* must be used on the host before pivot_root(2).  */
+// 初始化安全设置
 static int
 initialize_security (runtime_spec_schema_config_schema_process *proc, libcrun_error_t *err)
 {
@@ -1039,6 +1044,8 @@ libcrun_container_notify_handler (struct container_entrypoint_s *args,
 
 /* Initialize the environment where the container process runs.
    It is used by the container init process.  */
+// 初始化容器进程运行环境
+// 它由容器初始化进程使用
 static int
 container_init_setup (void *args, pid_t own_pid, char *notify_socket,
                       int sync_socket, char **exec_path, libcrun_error_t *err)
@@ -1366,6 +1373,7 @@ rewrite_argv (char **argv, int argc, const char *name, char **args, size_t args_
 }
 
 /* Entrypoint to the container.  */
+// 容器的入口点
 static int
 container_init (void *args, char *notify_socket, int sync_socket, libcrun_error_t *err)
 {
@@ -1389,6 +1397,7 @@ container_init (void *args, char *notify_socket, int sync_socket, libcrun_error_
       return crun_make_error (err, errno, "read from sync socket");
     }
 
+  // 初始化容器运行环境
   ret = container_init_setup (args, own_pid, notify_socket, sync_socket, &exec_path, err);
   if (UNLIKELY (ret < 0))
     {
@@ -1522,6 +1531,7 @@ container_init (void *args, char *notify_socket, int sync_socket, libcrun_error_
       if (UNLIKELY (ret < 0))
         return ret;
 
+      // 执行自定义处理函数
       ret = entrypoint_args->custom_handler->vtable->run_func (entrypoint_args->custom_handler->cookie,
                                                                entrypoint_args->container,
                                                                exec_path,
@@ -1535,10 +1545,12 @@ container_init (void *args, char *notify_socket, int sync_socket, libcrun_error_
   /* Attempt to close all the files that are not needed to prevent execv to have access to them.
      This is a best effort operation since the seccomp profile is already in place now and might block
      some of the syscalls needed by mark_or_close_fds_ge_than.  */
+  // 关闭掉不需要的 fs (尽力而为)
   ret = mark_or_close_fds_ge_than (entrypoint_args->context->preserve_fds + 3, true, err);
   if (UNLIKELY (ret < 0))
     crun_error_release (err);
 
+  // 终于执行真正 efi 了
   TEMP_FAILURE_RETRY (execv (exec_path, def->process->args));
 
   if (errno == ENOENT)
@@ -2278,6 +2290,7 @@ get_seccomp_receiver_fd (libcrun_container_t *container, int *fd, int *self_rece
   return 0;
 }
 
+// 容器内部运行
 static int
 libcrun_container_run_internal (libcrun_container_t *container, libcrun_context_t *context,
                                 int *container_ready_fd, libcrun_error_t *err)
@@ -2334,6 +2347,7 @@ libcrun_container_run_internal (libcrun_container_t *container, libcrun_context_
 
   if (! detach || context->notify_socket)
     {
+      // 收集儿子
       ret = prctl (PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
       if (UNLIKELY (ret < 0))
         return crun_make_error (err, errno, "set child subreaper");
@@ -2362,6 +2376,7 @@ libcrun_container_run_internal (libcrun_container_t *container, libcrun_context_
       socket_pair_1 = container_args.terminal_socketpair[1];
     }
 
+  // 堵塞所有信号
   ret = block_signals (err);
   if (UNLIKELY (ret < 0))
     return ret;
@@ -2478,6 +2493,7 @@ libcrun_container_run_internal (libcrun_container_t *container, libcrun_context_
         goto fail;
     }
 
+  // 启用、创建、配置控制组, 把 pid 加进去
   ret = libcrun_cgroup_enter (&cg, &cgroup_status, err);
   if (UNLIKELY (ret < 0))
     goto fail;
@@ -2487,6 +2503,7 @@ libcrun_container_run_internal (libcrun_container_t *container, libcrun_context_
     goto fail;
 
   /* sync send own pid.  */
+  // 同步发送自己的 pid
   ret = TEMP_FAILURE_RETRY (write (sync_socket, &pid, sizeof (pid)));
   if (UNLIKELY (ret != sizeof (pid)))
     {
@@ -2637,6 +2654,7 @@ fail:
   return ret;
 }
 
+// 配置检测
 static int
 check_config_file (runtime_spec_schema_config_schema *def, libcrun_context_t *context, libcrun_error_t *err)
 {
@@ -2653,6 +2671,7 @@ check_config_file (runtime_spec_schema_config_schema *def, libcrun_context_t *co
   return 0;
 }
 
+// 移动配置
 static int
 libcrun_copy_config_file (const char *id, const char *state_root, libcrun_container_t *container, libcrun_error_t *err)
 {
@@ -2715,6 +2734,7 @@ libcrun_container_run (libcrun_context_t *context, libcrun_container_t *containe
 
   container->context = context;
 
+  // 校验选项
   ret = validate_options (options, LIBCRUN_RUN_OPTIONS_PREFORK | LIBCRUN_RUN_OPTIONS_KEEP, err);
   if (UNLIKELY (ret < 0))
     return ret;
@@ -2742,6 +2762,7 @@ libcrun_container_run (libcrun_context_t *context, libcrun_container_t *containe
       return ret;
     }
 
+  // 用于跨进程通讯
   ret = pipe2 (container_ret_status, O_CLOEXEC);
   if (UNLIKELY (ret < 0))
     return crun_make_error (err, errno, "pipe");
@@ -2784,6 +2805,7 @@ libcrun_container_run (libcrun_context_t *context, libcrun_container_t *containe
   close_and_reset (&pipefd0);
 
   /* forked process.  */
+  // 分离进程(通过 setsid 后再次 fork)
   ret = detach_process ();
   if (UNLIKELY (ret < 0))
     libcrun_fail_with_error (errno, "detach process");
@@ -2792,7 +2814,9 @@ libcrun_container_run (libcrun_context_t *context, libcrun_container_t *containe
   if (UNLIKELY (ret < 0))
     goto fail;
 
+  // 内部容器运行函数
   ret = libcrun_container_run_internal (container, context, NULL, &tmp_err);
+  // 写退出状态
   TEMP_FAILURE_RETRY (write (pipefd1, &ret, sizeof (ret)));
   if (UNLIKELY (ret < 0))
     goto fail;
@@ -2801,6 +2825,7 @@ libcrun_container_run (libcrun_context_t *context, libcrun_container_t *containe
 fail:
 
   if (! (options & LIBCRUN_RUN_OPTIONS_KEEP))
+    // 不保留,收尸处理
     force_delete_container_status (context, def);
   if (tmp_err)
     {
@@ -3223,6 +3248,7 @@ cleanup_process_schemap (runtime_spec_schema_config_schema_process **p)
     (void) free_runtime_spec_schema_config_schema_process (process);
 }
 
+// 执行程序入口点
 static int
 exec_process_entrypoint (libcrun_context_t *context,
                          libcrun_container_t *container,
@@ -3256,14 +3282,17 @@ exec_process_entrypoint (libcrun_context_t *context,
   else
     crun_error_release (err);
 
+  // 解除所有信号堵塞
   ret = unblock_signals (err);
   if (UNLIKELY (ret < 0))
     return ret;
 
+  // 清除环境变量
   ret = clearenv ();
   if (UNLIKELY (ret < 0))
     return ret;
 
+  // 设置配置的环境变量
   if (process->env_len)
     {
       for (i = 0; i < process->env_len; i++)
@@ -3282,6 +3311,7 @@ exec_process_entrypoint (libcrun_context_t *context,
         }
     }
 
+  // 配置家目录
   if (getenv ("HOME") == NULL)
     {
       ret = set_home_env (container_uid);
@@ -3292,14 +3322,17 @@ exec_process_entrypoint (libcrun_context_t *context,
         }
     }
 
+  // 安全子系统配置
   ret = libcrun_set_selinux_label (process, false, err);
   if (UNLIKELY (ret < 0))
     return ret;
 
+  // 安全子系统配置
   ret = libcrun_set_apparmor_profile (process, false, err);
   if (UNLIKELY (ret < 0))
     return ret;
 
+  // 安全子系统配置
   if (container->container_def->linux && container->container_def->linux->seccomp)
     {
       seccomp_flags = container->container_def->linux->seccomp->flags;
@@ -3362,6 +3395,7 @@ exec_process_entrypoint (libcrun_context_t *context,
   else if (container->container_def->process)
     capabilities = container->container_def->process->capabilities;
 
+  // 设置权限配置
   ret = libcrun_set_caps (capabilities, container_uid, container_gid, process->no_new_privileges, err);
   if (UNLIKELY (ret < 0))
     return ret;
@@ -3408,6 +3442,7 @@ exec_process_entrypoint (libcrun_context_t *context,
   TEMP_FAILURE_RETRY (close (pipefd1));
   pipefd1 = -1;
 
+  // 自定义程序
   if (custom_handler)
     {
       if (custom_handler->vtable->exec_func == NULL)
@@ -3428,10 +3463,12 @@ exec_process_entrypoint (libcrun_context_t *context,
      This is a best effort operation, because the seccomp filter is already in place and it could
      stop some syscalls used by mark_or_close_fds_ge_than.
   */
+  // 关闭掉不需要的 fs (尽力而为)
   ret = mark_or_close_fds_ge_than (context->preserve_fds + 3, true, err);
   if (UNLIKELY (ret < 0))
     crun_error_release (err);
 
+  // 终于执行了
   TEMP_FAILURE_RETRY (execv (exec_path, process->args));
   libcrun_fail_with_error (errno, "exec");
   _exit (EXIT_FAILURE);
@@ -3609,11 +3646,13 @@ libcrun_container_exec_with_options (libcrun_context_t *context, const char *id,
     return pid;
 
   /* Process to exec.  */
+  /* 执行过程 */
   if (pid == 0)
     {
       TEMP_FAILURE_RETRY (close (pipefd0));
       pipefd0 = -1;
 
+      // 进入程序执行逻辑
       exec_process_entrypoint (context, container, process, pipefd1, seccomp_fd, seccomp_receiver_fd, custom_handler, err);
       /* It gets here only on errors.  */
       if (*err)

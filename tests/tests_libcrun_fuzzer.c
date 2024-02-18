@@ -479,6 +479,7 @@ main (int argc, char **argv)
   if (t)
     test_mode = atoi (t);
 
+  // 设置启用 subreaper，收集孤儿进程
   if (prctl (PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) < 0)
     libcrun_fail_with_error (1, "%s", "cannot set subreaper");
   signal (SIGCHLD, sig_chld);

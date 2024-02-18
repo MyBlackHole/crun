@@ -23,6 +23,7 @@
 #include "utils.h"
 #include <stdio.h>
 
+// 自定义功能函数
 struct custom_handler_s
 {
   const char *name;

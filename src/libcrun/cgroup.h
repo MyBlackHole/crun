@@ -29,10 +29,14 @@
 #  define PROC_SELF_CGROUP "/proc/self/cgroup"
 #endif
 
+// 模式
 enum
 {
+  // 统一
   CGROUP_MODE_UNIFIED = 1,
+  // 遗留？
   CGROUP_MODE_LEGACY,
+  // 混合模式
   CGROUP_MODE_HYBRID
 };
 
@@ -59,6 +63,7 @@ struct libcrun_cgroup_args
 };
 
 /* cgroup life-cycle management.  */
+// 控制组生命周期管理
 int libcrun_cgroup_preenter (struct libcrun_cgroup_args *args, int *dirfd, libcrun_error_t *err);
 int libcrun_cgroup_enter (struct libcrun_cgroup_args *args, struct libcrun_cgroup_status **out, libcrun_error_t *err);
 int libcrun_cgroup_enter_finalize (struct libcrun_cgroup_args *args, struct libcrun_cgroup_status *cgroup_status, libcrun_error_t *err);

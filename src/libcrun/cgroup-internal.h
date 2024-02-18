@@ -39,10 +39,13 @@ struct libcrun_cgroup_status
   int manager;
 };
 
+// 控制组抽象接口
 struct libcrun_cgroup_manager
 {
   /* Create a new cgroup and fill PATH in OUT.  */
+  // 创建一个新的控制组
   int (*create_cgroup) (struct libcrun_cgroup_args *args, struct libcrun_cgroup_status *out, libcrun_error_t *err);
+  // 预处理
   int (*precreate_cgroup) (struct libcrun_cgroup_args *args, int *dirfd, libcrun_error_t *err);
   /* Destroy the cgroup and kill any process if needed.  */
   int (*destroy_cgroup) (struct libcrun_cgroup_status *cgroup_status, libcrun_error_t *err);
