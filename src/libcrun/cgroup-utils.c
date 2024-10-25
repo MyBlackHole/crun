@@ -586,6 +586,8 @@ chown_cgroups (const char *path, uid_t uid, gid_t gid, libcrun_error_t *err)
     return ret;
 
   dfd = open (cgroup_path, O_CLOEXEC | O_PATH);
+  if (UNLIKELY (dfd < 0))
+    return crun_make_error (err, errno, "open `%s`", cgroup_path);
 
   ret = read_all_file ("/sys/kernel/cgroup/delegate", &delegate, &delegate_size, err);
   if (UNLIKELY (ret < 0))
@@ -747,6 +749,8 @@ read_available_controllers (const char *path, libcrun_error_t *err)
         available |= CGROUP_PIDS;
       else if (strcmp (token, "io") == 0)
         available |= CGROUP_IO;
+      else if (strcmp (token, "misc") == 0)
+        available |= CGROUP_MISC;
     }
   return available;
 }
@@ -761,10 +765,11 @@ write_controller_file (const char *path, int controllers_to_enable, libcrun_erro
 
   // 写入要启用的功能
   controllers_len = xasprintf (
-      &controllers, "%s %s %s %s %s %s", (controllers_to_enable & CGROUP_CPU) ? "+cpu" : "",
+      &controllers, "%s %s %s %s %s %s %s", (controllers_to_enable & CGROUP_CPU) ? "+cpu" : "",
       (controllers_to_enable & CGROUP_IO) ? "+io" : "", (controllers_to_enable & CGROUP_MEMORY) ? "+memory" : "",
       (controllers_to_enable & CGROUP_PIDS) ? "+pids" : "", (controllers_to_enable & CGROUP_CPUSET) ? "+cpuset" : "",
-      (controllers_to_enable & CGROUP_HUGETLB) ? "+hugetlb" : "");
+      (controllers_to_enable & CGROUP_HUGETLB) ? "+hugetlb" : "",
+      (controllers_to_enable & CGROUP_MISC) ? "+misc" : "");
 
   // 拼接启用控制配置文件
   ret = append_paths (&subtree_control, err, CGROUP_ROOT, path, "cgroup.subtree_control", NULL);
@@ -966,7 +971,7 @@ libcrun_get_cgroup_dirfd (struct libcrun_cgroup_status *status, const char *sub_
   if (UNLIKELY (ret < 0))
     return ret;
 
-  cgroupdirfd = open (path_to_cgroup, O_CLOEXEC | O_NOFOLLOW | O_DIRECTORY | O_RDONLY);
+  cgroupdirfd = open (path_to_cgroup, O_CLOEXEC | O_NOFOLLOW | O_DIRECTORY | O_PATH);
   if (UNLIKELY (cgroupdirfd < 0))
     return crun_make_error (err, errno, "open `%s`", path_to_cgroup);
 

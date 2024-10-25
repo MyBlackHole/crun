@@ -178,6 +178,7 @@ struct features_info_s
   char **mount_options;
   struct linux_info_s linux;
   struct annotations_info_s annotations;
+  char **potentially_unsafe_annotations;
 };
 
 struct libcrun_checkpoint_restore_s
@@ -194,6 +195,8 @@ struct libcrun_checkpoint_restore_s
   char *parent_path;
   bool pre_dump;
   int manage_cgroups_mode;
+  char *lsm_profile;
+  char *lsm_mount_context;
 };
 typedef struct libcrun_checkpoint_restore_s libcrun_checkpoint_restore_t;
 

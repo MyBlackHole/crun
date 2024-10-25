@@ -5,7 +5,7 @@ set -xeuo pipefail
 SKIP_GPG=${SKIP_GPG:-}
 SKIP_CHECKS=${SKIP_CHECKS:-}
 
-NIX_IMAGE=${NIX_IMAGE:-nixos/nix:2.12.0}
+NIX_IMAGE=${NIX_IMAGE:-nixos/nix:2.24.9}
 
 test -e Makefile && make distclean
 
@@ -31,10 +31,10 @@ mkdir -p $OUTDIR
 rm -f crun-*.tar*
 
 make dist-gzip
-make dist-xz
+make ZSTD_OPT="--ultra -c22" dist-zstd
 
 mv crun-*.tar.gz $OUTDIR
-mv crun-*.tar.xz $OUTDIR
+mv crun-*.tar.zst $OUTDIR
 
 make distclean
 

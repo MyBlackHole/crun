@@ -207,6 +207,7 @@ libcrun_cgroup_destroy (struct libcrun_cgroup_status *cgroup_status, libcrun_err
 
 int
 libcrun_update_cgroup_resources (struct libcrun_cgroup_status *cgroup_status,
+                                 const char *state_root,
                                  runtime_spec_schema_config_linux_resources *resources,
                                  libcrun_error_t *err)
 {
@@ -219,11 +220,11 @@ libcrun_update_cgroup_resources (struct libcrun_cgroup_status *cgroup_status,
 
   if (cgroup_manager->update_resources)
     {
-      ret = cgroup_manager->update_resources (cgroup_status, resources, err);
+      ret = cgroup_manager->update_resources (cgroup_status, state_root, resources, err);
       if (UNLIKELY (ret < 0))
         return ret;
     }
-  return update_cgroup_resources (cgroup_status->path, resources, err);
+  return update_cgroup_resources (cgroup_status->path, state_root, resources, err);
 }
 
 static int
@@ -382,7 +383,7 @@ libcrun_cgroup_enter (struct libcrun_cgroup_args *args, struct libcrun_cgroup_st
 
       if (args->resources)
         {
-          ret = update_cgroup_resources (status->path, args->resources, err);
+          ret = update_cgroup_resources (status->path, args->state_root, args->resources, err);
           if (UNLIKELY (ret < 0))
             return ret;
         }
@@ -477,22 +478,18 @@ int
 libcrun_cgroup_has_oom (struct libcrun_cgroup_status *status, libcrun_error_t *err)
 {
   cleanup_free char *content = NULL;
-  const char *path = NULL;
+  const char *path = status->path;
   const char *prefix = NULL;
   size_t content_size = 0;
   int cgroup_mode;
   char *it;
 
-  path = status->path;
   if (UNLIKELY (path == NULL || path[0] == '\0'))
     return 0;
 
   cgroup_mode = libcrun_get_cgroup_mode (err);
   if (UNLIKELY (cgroup_mode < 0))
     return cgroup_mode;
-
-  if (path == NULL || path[0] == '\0')
-    return 0;
 
   switch (cgroup_mode)
     {

@@ -1,3 +1,66 @@
+* crun-1.18
+
+- cgroup: support running without a sub-cgroup with systemd.  Use the
+  d-bus API to set the container limits on the systemd scope itself.
+  It allows running without a sub-cgroup when the systemd driver is
+  used, the run.oci.systemd.subgroup annotation controls it.  For now,
+  a sub-cgroup is still created, but it might be changed in future.
+- cgroup: add support for the misc controller.
+- linux: fix running on kernel without user namespaces.
+- criu, restore: add lsm-profile option.
+- criu, restore: add lsm-mount-context option.
+- linux: add duplicate namespace detection.
+
+* crun-1.17
+
+- Add `--log-level` option.  It accepts `error`, `warning` and `error`.
+- Add debug logs for container creation.
+- Fix double-free in crun exec code that could lead to a crash.
+- Allow passing an ID to the journald log driver.
+- Report "executable not found" errors after tty has been setup.
+- Do not treat EPIPE from hooks as an error.
+- Make sure `DefaultDependencies` is correctly set in the systemd scope.
+- Improve the error message when the container process is not found.
+- Improve error handling for the mnt namespace restoration.
+- Fix error handling for `getpwuid_r`, `recvfrom` and `libcrun_kill_linux`.
+- Fix handling of device paths with trailing slashes.
+
+* crun-1.16.1
+
+- fix a regression introduced by 1.16 where using 'rshared' rootfs
+  mount propagation and the rootfs itself is a mountpoint.
+- inherit user from original process on exec, if not overridden.
+
+* crun-1.16
+
+- build: fix build for s390x.
+- linux: fix mount of special files with rro.  Open the mount target
+  with O_PATH to prevent open(2) failures with special files like
+  FIFOs or UNIX sockets.
+- Fix sd-bus error handling for cpu quota and period props update.
+- container: use relative path for rootfs if possible.  If the rootfs
+  cannot be resolved and it is below the current working directory,
+  only use its relative path.
+- wasmedge: access container environment variables for the WasmEdge
+  configuration.
+- cgroup, systemd: use MemoryMax instead of MemoryLimit.  Fixes a
+  warning for using an old configuration name.
+- cgroup, systemd: improve checks for sd_bus_message_append errors
+
+* crun-1.15
+
+- fix a mount point leak under /run/crun, add a retry mechanism to
+  unmount the directory if the removal failed with EBUSY.
+- linux: cgroups: fix potential mount leak when /sys/fs/cgroup is
+  already mounted, causing the posthooks to not run.
+- release: build s390x binaries using musl libc.
+- features: add support for potentiallyUnsafeConfigAnnotations.
+- handlers: add option to load wasi-nn plugin for wasmedge.
+- linux: fix "harden chdir()" security measure.  The previous check
+  was not correct.
+- crun: add option --keep to the run command.  When specified the
+  container is not automatically deleted when it exits.
+
 * crun-1.14.4
 
 - linux: fix mount of file with recursive flags.  Do not assume it is

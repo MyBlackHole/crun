@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <yajl/yajl_tree.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -440,6 +441,7 @@ libcrun_status_check_directories (const char *state_root, const char *id, libcru
   cleanup_free char *run_directory = get_run_directory (state_root);
   int ret;
 
+  libcrun_debug ("Checking run directory: %s", run_directory);
   ret = crun_ensure_directory (run_directory, 0700, false, err);
   if (UNLIKELY (ret < 0))
     return ret;
@@ -485,7 +487,20 @@ rmdirfd (const char *namedir, int fd, libcrun_error_t *err)
       ret = unlinkat (dirfd (d), de->d_name, 0);
       if (ret < 0)
         {
+        retry_unlink:
           ret = unlinkat (dirfd (d), de->d_name, AT_REMOVEDIR);
+          if (ret < 0 && errno == EBUSY)
+            {
+              cleanup_close int tfd = openat (dirfd (d), de->d_name, O_CLOEXEC | O_PATH | O_NOFOLLOW);
+              if (tfd >= 0)
+                {
+                  proc_fd_path_t procpath;
+
+                  get_proc_self_fd_path (procpath, tfd);
+                  if (umount2 (procpath, MNT_DETACH) == 0)
+                    goto retry_unlink;
+                }
+            }
           if (ret < 0 && errno == ENOTEMPTY)
             {
               cleanup_close int cfd = -1;
@@ -518,7 +533,7 @@ libcrun_container_delete_status (const char *state_root, const char *id, libcrun
   if (UNLIKELY (dir == NULL))
     return crun_make_error (err, 0, "cannot get state directory");
 
-  rundir_dfd = TEMP_FAILURE_RETRY (open (dir, O_DIRECTORY | O_RDONLY | O_CLOEXEC));
+  rundir_dfd = TEMP_FAILURE_RETRY (open (dir, O_DIRECTORY | O_PATH | O_CLOEXEC));
   if (UNLIKELY (rundir_dfd < 0))
     return crun_make_error (err, errno, "cannot open run directory `%s`", dir);
 
@@ -670,6 +685,7 @@ libcrun_status_create_exec_fifo (const char *state_root, const char *id, libcrun
   if (UNLIKELY (ret < 0))
     return ret;
 
+  libcrun_debug ("Creating exec fifo: %s", fifo_path);
   ret = mkfifo (fifo_path, 0600);
   if (UNLIKELY (ret < 0))
     return crun_make_error (err, errno, "mkfifo");

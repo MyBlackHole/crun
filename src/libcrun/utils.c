@@ -144,16 +144,7 @@ write_file_at (int dirfd, const char *name, const void *data, size_t len, libcru
 int
 write_file_with_flags (const char *name, int flags, const void *data, size_t len, libcrun_error_t *err)
 {
-  cleanup_close int fd = open (name, O_CLOEXEC | O_WRONLY | flags, 0700);
-  int ret;
-  if (UNLIKELY (fd < 0))
-    return crun_make_error (err, errno, "opening file `%s` for writing", name);
-
-  ret = TEMP_FAILURE_RETRY (write (fd, data, len));
-  if (UNLIKELY (ret < 0))
-    return crun_make_error (err, errno, "writing file `%s`", name);
-
-  return ret;
+  return write_file_at_with_flags (AT_FDCWD, flags, 0700, name, data, len, err);
 }
 
 int
@@ -723,7 +714,16 @@ check_running_in_user_namespace (libcrun_error_t *err)
 
   ret = read_all_file ("/proc/self/uid_map", &buffer, &len, err);
   if (UNLIKELY (ret < 0))
-    return ret;
+    {
+      /* If the file does not exist, then the kernel does not support user namespaces and we for sure aren't in one.  */
+      if (crun_error_get_errno (err) == ENOENT)
+        {
+          crun_error_release (err);
+          run_in_userns = 0;
+          return run_in_userns;
+        }
+      return ret;
+    }
 
   ret = strstr (buffer, "4294967295") ? 0 : 1;
   run_in_userns = ret;
@@ -830,7 +830,7 @@ lsm_attr_path (const char *lsm, const char *fname, libcrun_error_t *err)
   cleanup_close int lsm_dirfd = -1;
   char *attr_path = NULL;
 
-  attr_dirfd = open ("/proc/thread-self/attr", O_DIRECTORY | O_RDONLY | O_CLOEXEC);
+  attr_dirfd = open ("/proc/thread-self/attr", O_DIRECTORY | O_PATH | O_CLOEXEC);
   if (UNLIKELY (attr_dirfd < 0))
     {
       crun_make_error (err, errno, "open `/proc/thread-self/attr`");
@@ -840,7 +840,7 @@ lsm_attr_path (const char *lsm, const char *fname, libcrun_error_t *err)
   // Check for newer scoped interface in /proc/thread-self/attr/<lsm>
   if (lsm != NULL)
     {
-      lsm_dirfd = openat (attr_dirfd, lsm, O_DIRECTORY | O_RDONLY | O_CLOEXEC);
+      lsm_dirfd = openat (attr_dirfd, lsm, O_DIRECTORY | O_PATH | O_CLOEXEC);
 
       if (UNLIKELY (lsm_dirfd < 0 && errno != ENOENT))
         {
@@ -1037,7 +1037,7 @@ read_all_fd_with_size_hint (int fd, const char *description, char **out, size_t 
 int
 read_all_file_at (int dirfd, const char *path, char **out, size_t *len, libcrun_error_t *err)
 {
-  cleanup_close int fd;
+  cleanup_close int fd = -1;
 
   fd = TEMP_FAILURE_RETRY (openat (dirfd, path, O_RDONLY | O_CLOEXEC));
   if (UNLIKELY (fd < 0))
@@ -1063,6 +1063,8 @@ open_unix_domain_client_socket (const char *path, int dgram, libcrun_error_t *er
   proc_fd_path_t name_buf;
   cleanup_close int destfd = -1;
   cleanup_close int fd = -1;
+
+  libcrun_debug ("Opening UNIX domain socket: %s", path);
 
   fd = socket (AF_UNIX, dgram ? SOCK_DGRAM : SOCK_STREAM, 0);
   if (UNLIKELY (fd < 0))
@@ -1497,7 +1499,7 @@ getsubidrange (uid_t id, int is_uid, uint32_t *from, uint32_t *len)
           return -1;
         }
 
-      if (ret < 0 && errno != ERANGE)
+      if (ret != ERANGE)
         return ret;
 
       buf_size *= 2;
@@ -1680,8 +1682,13 @@ run_process_with_stdin_timeout_envp (char *path, char **args, const char *cwd, i
   ret = TEMP_FAILURE_RETRY (write (pipe_w, stdin, stdin_len));
   if (UNLIKELY (ret < 0))
     {
-      ret = crun_make_error (err, errno, "writing to pipe");
-      goto restore_sig_mask_and_exit;
+      /* Ignore EPIPE as the container process could have already
+         been terminated.  */
+      if (errno != EPIPE)
+        {
+          ret = crun_make_error (err, errno, "writing to pipe");
+          goto restore_sig_mask_and_exit;
+        }
     }
 
   close_and_reset (&pipe_w);
@@ -1811,7 +1818,7 @@ get_current_timestamp (char *out, size_t len)
   gmtime_r (&tv.tv_sec, &now);
   strftime (timestamp, sizeof (timestamp), "%Y-%m-%dT%H:%M:%S", &now);
 
-  snprintf (out, len, "%s.%06ldZ", timestamp, tv.tv_usec);
+  snprintf (out, len, "%s.%06lldZ", timestamp, (long long int) tv.tv_usec);
   out[len - 1] = '\0';
 }
 
@@ -2515,4 +2522,52 @@ get_overflow_gid (void)
       cached_gid = gid;
     }
   return gid;
+}
+
+void
+consume_trailing_slashes (char *path)
+{
+  if (! path || path[0] == '\0')
+    return;
+
+  char *last = path + strlen (path);
+
+  while (last > path && *(last - 1) == '/')
+    last--;
+
+  *last = '\0';
+}
+
+char **
+read_dir_entries (const char *path, libcrun_error_t *err)
+{
+  cleanup_dir DIR *dir = NULL;
+  size_t n_entries = 0;
+  size_t entries_size = 16;
+  char **entries = NULL;
+  struct dirent *de;
+
+  dir = opendir (path);
+  if (UNLIKELY (dir == NULL))
+    {
+      crun_make_error (err, errno, "opendir `%s`", path);
+      return NULL;
+    }
+
+  entries = xmalloc (entries_size * sizeof (char *));
+  while ((de = readdir (dir)))
+    {
+      if (strcmp (de->d_name, ".") == 0 || strcmp (de->d_name, "..") == 0)
+        continue;
+      if (n_entries == entries_size)
+        {
+          entries_size *= 2;
+          entries = xrealloc (entries, entries_size * sizeof (char *));
+        }
+      entries[n_entries++] = xstrdup (de->d_name);
+    }
+  entries = xrealloc (entries, (n_entries + 1) * sizeof (char *));
+  entries[n_entries] = NULL;
+
+  return entries;
 }

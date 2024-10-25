@@ -239,7 +239,7 @@ git-version.h:
 	fi
 
 nixpkgs:
-	@nix run -f channel:nixpkgs-unstable nix-prefetch-git -- \
+	@nix --extra-experimental-features nix-command run -f channel:nixpkgs-unstable nix-prefetch-git -- \
 		--no-deepClone https://github.com/nixos/nixpkgs > nix/nixpkgs.json
 
 dist-hook:
@@ -270,6 +270,22 @@ krun.1: $(abs_srcdir)/krun.1.md
 if HAVE_MD2MAN
 	$(MD2MAN) -in $(abs_srcdir)/krun.1.md -out krun.1
 endif HAVE_MD2MAN
+
+install-exec-hook:
+if ENABLE_KRUN
+	$(LN_S) -f crun$(EXEEXT) $(DESTDIR)$(bindir)/krun$(EXEEXT)
+endif
+if ENABLE_WASM
+	$(LN_S) -f crun$(EXEEXT) $(DESTDIR)$(bindir)/crun-wasm$(EXEEXT)
+endif
+
+uninstall-hook:
+if ENABLE_KRUN
+	rm -f $(DESTDIR)$(bindir)/krun$(EXEEXT)
+endif
+if ENABLE_WASM
+	rm -f $(DESTDIR)$(bindir)/crun-wasm$(EXEEXT)
+endif
 
 generate-man: crun.1 krun.1
 

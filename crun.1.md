@@ -98,6 +98,10 @@ If no backend is specified, then *file:* is used by default.
 Define the format of the log messages.  It can either be **text**, or
 **json**.  The default is **text**.
 
+**--log-level**=_LEVEL_
+Define the log level.  It can either be **debug**, **warning** or **error**.
+The default is **error**.
+
 **--no-pivot**
 Use `chroot(2)` instead of `pivot_root(2)` when creating the container.
 This option is not safe, and should be avoided.
@@ -385,6 +389,17 @@ Where to write the PID of the container
 **--manage-cgroups-mode**=_MODE_
 Specify which CRIU manage cgroup mode should be used. Permitted values are
 **soft**, **ignore**, **full** or **strict**. Default is **soft**.
+
+**--lsm-profile**=_TYPE_:_NAME_
+Specify an LSM profile to be used during restore.
+_TYPE_ can be either **apparmor** or **selinux**.
+
+**--lsm-mount-context**=_VALUE_
+Specify a new LSM mount context to be used during restore.
+This option replaces an existing mount context information
+with the specified value. This is useful when restoring
+a container into an existing Pod and selinux labels
+need to be changed during restore.
 
 # Extensions to OCI
 
